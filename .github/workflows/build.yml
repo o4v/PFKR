@@ -1,22 +1,35 @@
-    name: Build protofukr
-    on:
-      push:
-      workflow_dispatch:
-    jobs:
-      build:
-        runs-on: windows-latest
-        steps:
-          - uses: actions/checkout@v4
-          - name: Unzip project
-            run: Expand-Archive -Path protofukr-source.zip -DestinationPath src -Force
-          - name: Configure
-            working-directory: src/protofukr
-            run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-          - name: Build
-            working-directory: src/protofukr
-            run: cmake --build build --config Release --target protofukr_VST3 --parallel
-          - name: Upload plugin
-            uses: actions/upload-artifact@v4
-            with:
-              name: protofukr-vst3
-              path: src/protofukr/build/protofukr_artefacts/Release/VST3/
+name: Build protofukr
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Unzip project
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem -Filter "protofukr*.zip" | Select-Object -First 1
+          if (-not $zip) { Write-Error "No protofukr zip found in the repo"; exit 1 }
+          Expand-Archive -Path $zip.FullName -DestinationPath src -Force
+      - name: Set up Visual C++
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Configure
+        working-directory: src/protofukr
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        working-directory: src/protofukr
+        shell: pwsh
+        run: |
+          cmake --build build --target protofukr_VST3 2>&1 | Tee-Object -FilePath build.log
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "=========== ERRORS ==========="
+            Select-String -Path build.log -Pattern "error" | Select-Object -First 25 | ForEach-Object { Write-Host $_.Line }
+            exit 1
+          }
+      - name: Upload plugin
+        uses: actions/upload-artifact@v5
+        with:
+          name: protofukr-vst3
+          path: src/protofukr/build/protofukr_artefacts/Release/VST3/
