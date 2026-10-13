@@ -1,0 +1,22 @@
+    name: Build protofukr
+    on:
+      push:
+      workflow_dispatch:
+    jobs:
+      build:
+        runs-on: windows-latest
+        steps:
+          - uses: actions/checkout@v4
+          - name: Unzip project
+            run: Expand-Archive -Path protofukr-source.zip -DestinationPath src -Force
+          - name: Configure
+            working-directory: src/protofukr
+            run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          - name: Build
+            working-directory: src/protofukr
+            run: cmake --build build --config Release --target protofukr_VST3 --parallel
+          - name: Upload plugin
+            uses: actions/upload-artifact@v4
+            with:
+              name: protofukr-vst3
+              path: src/protofukr/build/protofukr_artefacts/Release/VST3/
